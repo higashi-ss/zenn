@@ -2,7 +2,7 @@
 title: "コンテナからreact nativeのEXPOを環境構築する方法"
 emoji: "⚛️"
 type: "tech"
-topics: ["ReactNative", "Expo", "環境構築", "トンネル", "React"]
+topics: ["ReactNative", "Expo", "環境構築", "トンネル", "WSL"]
 published: true
 published_at: 2026-02-16 06:00
 publication_name: "secondselection"
@@ -27,16 +27,110 @@ Expoは公式ドキュメント通りに進めればローカル環境（PC直�
 * 「環境を汚したくない」派のエンジニア：Node.jsや依存ライブラリをPC本体（ローカル）に直接入れたくない。
 * Docker環境でExpo Goが繋がらず困っている方：コンテナで起動はできたのに、スマホに画面が映らなくて「詰んだ」と感じている。
 
-## 事前準備と前提条件
+## 事前準備
 
 * 必要な環境（ツール）
-Windows 10/11 + WSL2: Linux環境がセットアップ済みであること。
+Windows 11 + WSL2: Linux環境がセットアップ済みであること。
 Docker Desktop / Docker Engine: WSL2上でDockerが動作する状態であること。
 VS Code: コンテナ内のファイルを編集するために推奨します。
 スマートフォン: iOSまたはAndroid（Expo Goアプリをインストール済み）。
-* 前提知識
-Dockerの基本操作: docker compose up 程度のコマンド操作ができること。
-JavaScript / React の基礎: コードの書き換えに抵抗がないこと。
+
+## 環境構築手順
+1,WSL内に任意のディレクトリを1つ作成する（本記事ではmyappとする）
+2,1の配下に 下記に記載したDockerfile,docker-compose.yml をコピーし設置してください
+
+### Dockerfile
+
+```Markdown: Dockerfile
+# node.js(バージョン24)をインストール
+FROM node:24
+
+# コンテナ中に /app というフォルダを自動作成
+# それ以降の命令（npm install など）をすべてその中で実行
+WORKDIR /app
+
+
+# ポートの開放（Expoの通信用）
+EXPOSE 8081
+
+#dockerを起動待機中
+CMD ["bash"]
+```
+
+### docker-compose.yml
+
+```Markdown: Dockerfile
+# services:はコンテナの定義
+services:
+  app:
+    build: .
+    volumes:
+      - .:/app
+    ports:
+      - "8081:8081"
+    tty: true
+    stdin_open: true
+```
+
+対応後以下のディレクトリ構造になっているか確認してください
+WSL
+├── myapp
+│   │─── Dockerfile
+│   └── docker-compose.yml
+
+3, myappディレクトリで下記コマンドを実行してください
+docker compose up -d
+　　これでコンテナを立ち上げる
+　
+:::message
+補足：下記コマンドでコンテナ内にnpxが入ってるか確認できます
+```Markdown
+docker compose exec app npx -v
+//結果 11.6.2
+```
+:::
+
+4,expoテンプレートプロジェクトをインストールする
+4-1 tempというファイルを作成しそこにexpoプロジェクトを作成する（ライブラリはインストールしない）
+docker compose exec app npx create-expo-app@latest temp --no-install
+
+4-2tempフォルダの中身をappフォルダに移動する
+docker compose exec app sh -c "mv temp/* . && mv temp/.* . 2>/dev/null; rmdir temp"
+
+4-3 appフォルダにてpackage.jsonにそって必要なライブラリをインストールする
+docker compose exec app npm install
+
+補足　4-1であえてフォルダを作成してそこに入れたのは　npx create-expo-app というコマンドは、「まっさらな（何もファイルがない）フォルダ」にプロジェクトを作ることを前提としているから
+
+　　
+5,以下のコマンドでコンテナ内でサーバーを起動（トンネル化が必要）
+docker compose exec app npx expo start --tunnel
+
+初めてサーバーを起動する際は下記コマンドが表示されるのでyesを選択しダウンロードする
+globallyとあるがコンテナ内だけのインストールなので心配なし
+
+? The package @expo/ngrok@^4.1.0 is required to use tunnels, would you like to install it globally? 
+
+6,ダウンロードが終わったら、QRが表示され読み取るとスマホからアプリを表示できる
+
+
+## つまずきポイント
+
+下記に過去につまづいた部分を記載しました
+
+・なぜtempファイルをわざわざ作成する必要があるのか？
+
+・portsは8081だけでいいのか？
+
+・トンネル化とは何か？
+
+## 最後に
+
+今回の記事では、WSL2 + Docker環境でExpoを構築し、トンネル接続を使って実機確認を行う方法を解説しました。
+
+コンテナ環境でのうまく繋がらない現象は@expo/ngrokライブラリを使用することで
+簡単に実機確認できるようになります
+最後までお読みいただきありがとうございました。
 
 
 
@@ -44,6 +138,31 @@ JavaScript / React の基礎: コードの書き換えに抵抗がないこと�
 
 
 
+
+
+
+ーーーーーーーーーーーーーーーーーーーーーーーー
+
+:::message
+
+### 対象読者
+
+* durable functionsの基本を理解したい方
+* LambdaやStep Functionsのワークフローの改善／見直しを考えている方
+
+:::
+
+
+:::message alert
+
+既存の通常Lambdaから切り替えは不可。
+新規作成時のみ設定可能です。
+(上記の3の手順を忘れて保存した場合、再作成になるのでご注意ください)
+
+:::
+
+
+## 4. 【step/wait】サーバーレスで「待つ」を実現する
 
 
 -----------------------
