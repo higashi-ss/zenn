@@ -2,7 +2,7 @@
 title: "コンテナからreact nativeのEXPOを環境構築する方法"
 emoji: "⚛️"
 type: "tech"
-topics: ["ReactNative", "Expo", "環境構築", "トンネル接続", "WSL"]
+topics: ["reactnative", "expo", "環境構築", "トンネル接続", "expo/ngrok"]
 published: true
 published_at: 2026-02-16 06:00
 publication_name: "secondselection"
