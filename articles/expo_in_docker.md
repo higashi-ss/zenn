@@ -2,64 +2,73 @@
 title: "コンテナからreact nativeのEXPOを環境構築する方法"
 emoji: "⚛️"
 type: "tech"
-topics: ["ReactNative", "Expo", "環境構築", "トンネル", "WSL"]
+topics: ["ReactNative", "Expo", "環境構築", "トンネル接続", "WSL"]
 published: true
 published_at: 2026-02-16 06:00
 publication_name: "secondselection"
 ---
 
-## はじめに
+## 1. はじめに
 
-* **背景と課題**
+### 背景と課題
 
-最近、React Native + Expo の環境を、WSL2上のDockerコンテナで構築しました。
-Expoは公式ドキュメント通りに進めればローカル環境（PC直接）での構築は非常に簡単です。
-しかし、いざ「Dockerコンテナ」の中で動かそうとすると、**「スマホのExpo Goアプリに画面が映らない（接続できない）」**というネットワークの壁にぶつかる方もいるのではないでしょうか？
-この記事では、WSL2とDockerを組み合わせた環境に、スマホの実機確認を行うまでの環境構築手順と私自身、苦労したつまずきポイントを解説します。
+Expoは公式ドキュメント通りに進めればローカル環境（PC上に直接）での構築は非常に簡単です。
+しかし、いざDockerコンテナの中で動かそうとすると、 **「スマホのExpo Goアプリに画面が映らない（接続できない）」** というネットワークの壁にぶつかる方もいるのではないでしょうか？
+私は最初うまくいきませんでした…
+この記事では、WSL2とDockerを組み合わせた環境に、スマホの実機確認までの環境構築手順と私がつまづいた部分を解説します。
 
-* **記事を読んでできること**
-  * **最短ルートでの環境構築**: 手順通りに進めるだけで、Docker上のExpoとスマホの実機連携まで完了します。
-  * **「ハマりどころ」の回避**: コンテナ環境特有の通信エラーを解消や、見落としがちなミス対応の知見が得られます。
+### 記事を読んでできること
 
-* **💡対象読者**
+* **最短ルートでの環境構築**: 手順通りに進めるだけで、Docker上のExpoとスマホの実機連携まで完了します。
+* **「ハマりどころ」の回避**: 私が実際つまづいた点を3点紹介しておりますので今後のエラー回避の参考になります。
 
-* React Native / Expo 初学者の方：これからアプリ開発を始めたいけれど、環境構築で挫折したくない。
-* 「環境を汚したくない」派のエンジニア：Node.jsや依存ライブラリをPC本体（ローカル）に直接入れたくない。
-* Docker環境でExpo Goが繋がらず困っている方：コンテナで起動はできたのに、スマホに画面が映らなくて「詰んだ」と感じている。
+### 対象読者
 
-## 事前準備
+* React Native + Expo初学者の方
+* Node.jsや依存ライブラリをPC本体（ローカル）に直接入れたくない方。
+* Docker環境でExpoはインストールできたのに、スマホからビルド（Expo Go）画面が映らなくて困っている方。
 
-* 必要な環境（ツール）
-Windows 11 + WSL2: Linux環境がセットアップ済みであること。
-Docker Desktop / Docker Engine: WSL2上でDockerが動作する状態であること。
-VS Code: コンテナ内のファイルを編集するために推奨します。
-スマートフォン: iOSまたはAndroid（Expo Goアプリをインストール済み）。
+## 2. 事前準備
 
-## 環境構築手順
-1,WSL内に任意のディレクトリを1つ作成する（本記事ではmyappとする）
-2,1の配下に 下記に記載したDockerfile,docker-compose.yml をコピーし設置してください
+### 必要環境とツール
 
-### Dockerfile
+* Windows 11 + WSL2: Linux環境がセットアップ済みであること。
+* Docker環境: WSL2上でDockerが動作する状態であること。
+* VS Code: コンテナ内のファイルを編集するために推奨します。
+* スマートフォン: iOSまたはAndroid（Expo Goアプリをインストール済み）。
 
-```Markdown: Dockerfile
+## 3. 環境構築手順
+
+### 3-1. WSL内に任意のディレクトリを作成
+
+本記事では`myapp`とする。
+
+### 3-2. `Dockerfile`,`docker-compose.yml`をコピー
+
+3-1配下へ下記に記載した`Dockerfile`,`docker-compose.yml`をコピーしてください。
+※下記`Dockerfile`,`docker-compose.yml`は最小構成内容となります。
+
+Dockerfile
+
+```dockerfile: Dockerfile
 # node.js(バージョン24)をインストール
 FROM node:24
 
 # コンテナ中に /app というフォルダを自動作成
-# それ以降の命令（npm install など）をすべてその中で実行
+# それ以降の命令（npm install など）はすべてその中で実行
 WORKDIR /app
 
 
 # ポートの開放（Expoの通信用）
 EXPOSE 8081
 
-#dockerを起動待機中
+# dockerを起動待機中にする
 CMD ["bash"]
 ```
 
-### docker-compose.yml
+docker-compose.yml
 
-```Markdown: Dockerfile
+```yaml: docker-compose.yml
 # services:はコンテナの定義
 services:
   app:
@@ -72,231 +81,99 @@ services:
     stdin_open: true
 ```
 
-対応後以下のディレクトリ構造になっているか確認してください
+対応後以下のディレクトリ構造になっているか確認してください。
+
+```Markdown
 WSL
 ├── myapp
 │   │─── Dockerfile
 │   └── docker-compose.yml
-
-3, myappディレクトリで下記コマンドを実行してください
-docker compose up -d
-　　これでコンテナを立ち上げる
-　
-:::message
-補足：下記コマンドでコンテナ内にnpxが入ってるか確認できます
-```Markdown
-docker compose exec app npx -v
-//結果 11.6.2
 ```
-:::
 
-4,expoテンプレートプロジェクトをインストールする
-4-1 tempというファイルを作成しそこにexpoプロジェクトを作成する（ライブラリはインストールしない）
+### 3-3. コンテナ立ち上げ
+
+`myapp`ディレクトリで下記コマンドを実行してください。コンテナが立ち上がります。
+
+```bash
+docker compose up -d
+```
+
+### 3-4. expoテンプレートプロジェクトをインストール
+
+* 3-4-1. `temp`というフォルダを作成しそこにexpoプロジェクトを作成する。
+ライブラリはまだインストールしません。
+
+```bash
 docker compose exec app npx create-expo-app@latest temp --no-install
+```
 
-4-2tempフォルダの中身をappフォルダに移動する
+* 3-4-2. `temp`フォルダの中身を`app`フォルダに移動する。
+
+```bash
 docker compose exec app sh -c "mv temp/* . && mv temp/.* . 2>/dev/null; rmdir temp"
+```
 
-4-3 appフォルダにてpackage.jsonにそって必要なライブラリをインストールする
+* 3-4-3. `app`フォルダにて必要なライブラリをインストールする。
+
+```bash
 docker compose exec app npm install
+```
 
-補足　4-1であえてフォルダを作成してそこに入れたのは　npx create-expo-app というコマンドは、「まっさらな（何もファイルがない）フォルダ」にプロジェクトを作ることを前提としているから
+### 3-5. Expoサーバー起動
 
-　　
-5,以下のコマンドでコンテナ内でサーバーを起動（トンネル化が必要）
+下記コマンドを実行しExpoサーバーが起動する。
+
+```bash
 docker compose exec app npx expo start --tunnel
+```
 
-初めてサーバーを起動する際は下記コマンドが表示されるのでyesを選択しダウンロードする
-globallyとあるがコンテナ内だけのインストールなので心配なし
+初めてサーバーを起動する際は下記コマンドが表示されるのでyesを選択しダウンロードする。
+globallyとあるがコンテナ内だけの影響のためインストールの心配なし。
 
+```bash
 ? The package @expo/ngrok@^4.1.0 is required to use tunnels, would you like to install it globally? 
+```
 
-6,ダウンロードが終わったら、QRが表示され読み取るとスマホからアプリを表示できる
+### 3-6. QR表示
 
+ダウンロードが終わったら、QRが表示され読み取るとスマホからアプリが起動する。
 
-## つまずきポイント
+参考画像
+![画像](/images/expo_in_docker/expo_start.png)
 
-下記に過去につまづいた部分を記載しました
+## 4. つまずきポイント
 
-・なぜtempファイルをわざわざ作成する必要があるのか？
+過去に私自身がつまづいた部分を記載します。
 
-・portsは8081だけでいいのか？
+### なぜtempフォルダをわざわざ作成する必要があるのか？
 
-・トンネル化とは何か？
+`npx create-expo-app` というコマンドは、**空のフォルダでしか実行できないから**です。
+公式のセットアップ手順では元々空のフォルダにexpoプロジェクトをインストールしていますが、コンテナを作成する場合、`Dockerfile`,`docker-compose.yml`があります。
+そのため、`app`フォルダで`npx create-expo-app`を実行すると下記のようなエラーが発生します。
 
-## 最後に
+```bash
+The directory app contains files that could conflict. Please try using a new directory name, or remove the files listed above
+```
 
-今回の記事では、WSL2 + Docker環境でExpoを構築し、トンネル接続を使って実機確認を行う方法を解説しました。
+エラー回避のため、3-4-1、3-4-2ではわざわざ新規フォルダを作成しexpoプロジェクトをインストールするという、まどろっこしいやり方をしています。
 
-コンテナ環境でのうまく繋がらない現象は@expo/ngrokライブラリを使用することで
-簡単に実機確認できるようになります
+### portsは8081だけでいいのか？
+
+2026年3月16日時点でExpoのportは8081のみです。
+Expoの使用ポートを調べたりAIに聞いたりすると「19000」「19001」という情報がありますが古い情報です。
+現在は使用しません。
+
+### トンネル化とは何か？
+
+コンテナ内のExpoとスマホをネットワークで繋ぐための仕組みです。
+通常、スマホからPCのIPアドレスは見えますがコンテナのIPアドレスはスマホから確認できません。
+そのためコンテナ上で起動したExpoのQRコードを読み込んでもアドレスエラーが発生します。
+
+Expoでは、`@expo/ngrok`というライブラリと`--tunnel`オプションを活用し専用のトンネルを作ってアクセスが可能になります。
+
+## 5. 最後に
+
+今回の記事では、Dockerコンテナ上でExpoプロジェクトを立ち上げ、実機確認する方法を解説しました。
+コンテナ環境からスマホとうまく繋がらない現象は`--tunnel`オプションと`@expo/ngrok`ライブラリを活用することで解決できます。
+
 最後までお読みいただきありがとうございました。
-
-
-
-
-
-
-
-
-
-
-ーーーーーーーーーーーーーーーーーーーーーーーー
-
-:::message
-
-### 対象読者
-
-* durable functionsの基本を理解したい方
-* LambdaやStep Functionsのワークフローの改善／見直しを考えている方
-
-:::
-
-
-:::message alert
-
-既存の通常Lambdaから切り替えは不可。
-新規作成時のみ設定可能です。
-(上記の3の手順を忘れて保存した場合、再作成になるのでご注意ください)
-
-:::
-
-
-## 4. 【step/wait】サーバーレスで「待つ」を実現する
-
-
------------------------
-↓
-コード記載部分のコピペ
-
-1. 構成のポイント：なぜスマホと繋がらないのか？
-通常、ExpoはPCとスマホが同じWi-Fi（ローカルネットワーク）に繋がっていることを前提としています。 しかし、**「WSL2 + Docker」**の環境では、以下の図のようにネットワークが階層化されています。
-
-物理ネットワーク（あなたのWi-Fi）
-
-WSL2の仮想ネットワーク
-
-Dockerコンテナのネットワーク
-
-スマホから見ると、コンテナの中で動いているExpo CLIは「二重の壁」の向こう側に隠れてしまっているため、単純なIP指定では接続できないのです。
-
-これを一撃で解決するのが、Expo公式が提供している 「Tunnel（トンネル）機能」 です。これを使うと、インターネット経由でセキュアなエンドポイントを作成してくれるため、ネットワーク構成を気にせずスマホと接続できるようになります。
-
-1. 【実践】DockerでExpo環境を構築する
-それでは、実際に環境を作っていきましょう。
-
-2.1. プロジェクト構造
-適当な作業ディレクトリを作成し、以下の3つのファイルを用意します。
-
-Plaintext
-.
-├── docker-compose.yml
-├── Dockerfile
-└── (プロジェクトファイルがここに生成されます)
-2.2. Dockerfile の作成
-Node.jsをベースに、Expo CLIの動作に必要なパッケージをインストールします。
-
-Dockerfile
-
-# Dockerfile
-
-FROM node:20-slim
-
-WORKDIR /app
-
-# gitやプロセス管理に必要なツールをインストール
-
-RUN apt-get update && apt-get install -y \
-    git \
-    openssl \
-    && apt-get clean
-
-# Expo CLIをグローバルにインストール
-
-RUN npm install -g expo-cli
-
-EXPOSE 8081
-
-CMD ["/bin/bash"]
-2.3. docker-compose.yml の作成
-毎回長いコマンドを打たなくて済むよう、Composeで定義します。
-
-YAML
-
-# docker-compose.yml
-
-services:
-  app:
-    build: .
-    volumes:
-      - .:/app
-    ports:
-      - "8081:8081"
-    tty: true
-    stdin_open: true
-2.4. コンテナの起動と初期化
-ターミナル（WSL2）で以下のコマンドを実行します。
-
-Bash
-
-# コンテナの起動
-
-docker compose up -d --build
-
-# コンテナ内に入る
-
-docker compose exec app bash
-
-# プロジェクトの作成（初回のみ）
-
-# my-app は任意の名前に変えてください
-
-npx create-expo-app my-app
-
-# プロジェクトディレクトリへ移動
-
-cd my-app
-3. 重要：スマホ実機で確認するための設定
-ここからが本題です。コンテナの中で起動したExpoをスマホで確認します。
-
-3.1. Expo Go アプリの準備
-お手持ちのスマートフォン（iPhone / Android）に 「Expo Go」 アプリをインストールしておいてください。
-
-3.2. 魔法のコマンド：--tunnel
-コンテナ内でプロジェクトを起動する際、普通に npx expo start と打つのではなく、以下のオプションを付けます。
-
-Bash
-npx expo start --tunnel
-ここがポイント！
-
-初めて実行する場合、@expo/ngrok のインストールを促されるので y を押して進めます。
-
-実行後、ターミナルに大きな QRコード が表示されます。
-
-このQRコードをスマホのカメラ（またはExpo Goアプリ）でスキャンしてください。
-
-これで、インターネットを介してコンテナとスマホが接続され、アプリの画面がスマホに表示されるはずです！
-
-1. WSL2環境でよくあるトラブルシューティング
-4.1. ファイル監視数の上限エラー
-ENOSPC: System limit for number of file watchers reached というエラーが出ることがあります。これはWSL2（Linux）側のファイル監視上限が低いために起こります。その場合は、WSL2のターミナルで以下を実行して上限を上げてください。
-
-Bash
-echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
-4.2. ホットリロードが効かない場合
-Dockerのボリュームマウント経由だと、ファイルの変更検知がうまくいかないことがあります。その場合は、プロジェクト直下の app.json もしくは packge.json の設定を見直すか、コンテナを再起動してみてください。
-
-まとめ
-今回は、WSL2 + Docker環境でExpoを構築し、トンネル接続を使って実機確認する方法を解説しました。
-
-この記事のまとめ
-
-コンテナ環境ではネットワークの壁があるため、--tunnel オプションが必須。
-
-Dockerを使えば、ローカル環境を汚さずに複数のReact Nativeプロジェクトを管理できる。
-
-WSL2側のファイル監視設定（inotify）に注意。
-
-次のアクション 環境が整ったら、まずは App.js のテキストを書き換えて、スマホ側の表示がリアルタイムで変わる感動を味わってみてください！そこから先は、NativeWindでスタイルを当てたり、React Navigationで画面遷移を作ったりと、あなたのアイデアを形にするだけです。
-
-ハッピーコーディング！
