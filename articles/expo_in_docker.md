@@ -2,7 +2,7 @@
 title: "コンテナからreact nativeのEXPOを環境構築する方法"
 emoji: "⚛️"
 type: "tech"
-topics: ["reactnative", "expo", "環境構築", "トンネル接続", "expo/ngrok"]
+topics: ["reactnative", "expo", "環境構築", "トンネル接続", "ngrok"]
 published: true
 published_at: 2026-02-16 06:00
 publication_name: "secondselection"
@@ -45,8 +45,8 @@ Expoは公式ドキュメント通りに進めればローカル環境（PC上�
 
 ### 3-2. `Dockerfile`,`docker-compose.yml`をコピー
 
-3-1配下へ下記に記載した`Dockerfile`,`docker-compose.yml`をコピーしてください。
-※下記`Dockerfile`,`docker-compose.yml`は最小構成内容となります。
+作成した`myapp`ディレクトリ配下へ下記に記載した`Dockerfile`,`docker-compose.yml`をコピーしてください。
+※今回使用する`Dockerfile`,`docker-compose.yml`は最小構成内容となります。
 
 Dockerfile
 
@@ -54,7 +54,7 @@ Dockerfile
 # node.js(バージョン24)をインストール
 FROM node:24
 
-# コンテナ中に /app というフォルダを自動作成
+# コンテナ中に /app というディレクトリを自動作成
 # それ以降の命令（npm install など）はすべてその中で実行
 WORKDIR /app
 
@@ -100,20 +100,20 @@ docker compose up -d
 
 ### 3-4. expoテンプレートプロジェクトをインストール
 
-* 3-4-1. `temp`というフォルダを作成しそこにexpoプロジェクトを作成する。
+* 3-4-1. `temp`というディレクトリを作成しそこにexpoプロジェクトを作成する。
 ライブラリはまだインストールしません。
 
 ```bash
 docker compose exec app npx create-expo-app@latest temp --no-install
 ```
 
-* 3-4-2. `temp`フォルダの中身を`app`フォルダに移動する。
+* 3-4-2. `temp`ディレクトリの中身を`app`ディレクトリに移動する。
 
 ```bash
 docker compose exec app sh -c "mv temp/* . && mv temp/.* . 2>/dev/null; rmdir temp"
 ```
 
-* 3-4-3. `app`フォルダにて必要なライブラリをインストールする。
+* 3-4-3. `app`ディレクトリにて必要なライブラリをインストールする。
 
 ```bash
 docker compose exec app npm install
@@ -145,17 +145,17 @@ globallyとあるがコンテナ内だけの影響のためインストールの
 
 過去に私自身がつまづいた部分を記載します。
 
-### なぜtempフォルダをわざわざ作成する必要があるのか？
+### なぜtempディレクトリをわざわざ作成する必要があるのか？
 
-`npx create-expo-app` というコマンドは、**空のフォルダでしか実行できないから**です。
-公式のセットアップ手順では元々空のフォルダにexpoプロジェクトをインストールしていますが、コンテナを作成する場合、`Dockerfile`,`docker-compose.yml`があります。
-そのため、`app`フォルダで`npx create-expo-app`を実行すると下記のようなエラーが発生します。
+`npx create-expo-app` というコマンドは、**空のディレクトリでしか実行できないから**です。
+公式のセットアップ手順では元々空のディレクトリにexpoプロジェクトをインストールしていますが、コンテナを作成する場合、`Dockerfile`,`docker-compose.yml`があります。
+そのため、`app`ディレクトリで`npx create-expo-app`を実行すると下記のようなエラーが発生します。
 
 ```bash
 The directory app contains files that could conflict. Please try using a new directory name, or remove the files listed above
 ```
 
-エラー回避のため、3-4-1、3-4-2ではわざわざ新規フォルダを作成しexpoプロジェクトをインストールするという、まどろっこしいやり方をしています。
+エラー回避のため、3-4-1、3-4-2ではわざわざ新規ディレクトリを作成しexpoプロジェクトをインストールするという、まどろっこしいやり方をしています。
 
 ### portsは8081だけでいいのか？
 
