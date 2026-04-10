@@ -1,5 +1,5 @@
 ---
-title: "コンテナからreact nativeのEXPOを環境構築する方法"
+title: "コンテナからReact NativeのExpoを環境構築する方法"
 emoji: "⚛️"
 type: "tech"
 topics: ["reactnative", "expo", "環境構築", "トンネル接続", "ngrok"]
@@ -18,31 +18,17 @@ Expoは公式ドキュメント通りに進めればローカル環境（PC上�
 この記事では、WSL2とDockerを組み合わせた環境に、スマホの実機確認までの環境構築手順と私がつまづいた部分を解説します。
 
 また先にReact NativeとExpoについても簡単に説明いたします。
-本記事は環境構築の解説記事ですので今まで使ったことがない方も見ているはずです。React Native + ExpoはiOSアプリ、Androidアプリを1つのコードで両方のOSに対応できる「クロスプラットフォーム開発」を実現します。本来なら別々に必要な学習コストや開発時間を大幅に短縮できるため、本記事を機にぜひ始めてみてください！
+本記事は環境構築の解説記事ですので初めて触れる方も想定しています。React Native + ExpoはiOSアプリ、Androidアプリを1つのコードで両方のOSに対応できる「クロスプラットフォーム開発」を実現します。本来なら別々に必要な学習コストや開発時間を大幅に短縮できるため、本記事を機にぜひ始めてみてください！
 
 ### そもそもReact NativeとExpoって？
 
 React Nativeは、Meta社（旧Facebook）が開発したフレームワークでReactを使ってiOS/Androidアプリを同時に作ることができます。
 ExpoはReact Nativeの開発をさらにお手軽にするための開発支援ツール群です。
+開発支援ツールは下記等がありますが、本記事では詳細説明を割愛いたします。
 
-本記事で扱うExpoには、大きく3つの魅力があります。
-
-#### 簡単な実機確認
-
-Expoはターミナル上に表示されるQRコードを専用アプリで読み取るだけで即座に実機確認ができます。
-通常のiOS/Android開発やReact Nativeの開発では、XcodeやAndroid Studioといったモバイル開発用のIDEを準備しないと実機確認が出来ず、手間がかかります。
-
-#### Webエンジニアとの親和性  
-
-ReactはJavaScript系のフレームワークなのでプログラミング言語のハードルは低めではないでしょうか。通常のモバイル開発だとiOSアプリはswift、Androidアプリはkotlinというプログラミング言語を使います。どちらもモバイル開発していないと馴染みの薄い言語と考えます。
-私自身、独学で初めてアプリ開発をした際、kotlinに触れて挫折した経験があります…
-PythonやJavaScriptに比べ当時は情報が少なく感じました。
-
-その点、ExpoはJavaScript(React)ベースのため初学者やWebエンジニアの方も親しみやすい選択肢です。
-
-#### クラウドビルド  
-
-Expoのクラウドサービスを使えば無料でクラウド上からアプリのビルドが可能です。特にiOSアプリのビルドはMacでしかできないため、このサービスを利用すればWindowsユーザーでもiOSアプリのビルドができるようになります。
+* Expo SDK : カメラや位置情報などのモバイル機能の実装を簡素化する専用ライブラリが使用できる
+* Expo Go : スマホからQRコードを読み取るだけで実機確認ができる
+* EAS : PC上にビルド環境がなくてもクラウド上でビルドができる
 
 ### 記事を読んでできること
 
@@ -161,7 +147,7 @@ docker compose exec app npx expo start --tunnel
 ```
 
 初めてサーバーを起動する際は下記コマンドが表示されるのでyesを選択しダウンロードする。
-globallyとあるがコンテナ内だけの影響のためインストールの心配なし。
+globallyとあるがコンテナ内だけの影響のためインストールの心配ありません。
 
 ```bash
 ? The package @expo/ngrok@^4.1.0 is required to use tunnels, would you like to install it globally? 
@@ -176,11 +162,8 @@ globallyとあるがコンテナ内だけの影響のためインストールの
 * ターミナル画面
 ![画像](/images/expo_in_docker/expo_start.png)
 
-* スマホ画面（ビルド中）
-![画像](/images/expo_in_docker/expo_build_mobile.png =300x)
-
 * スマホ画面（ファーストビュー）
-![画像](/images/expo_in_docker/expo_firstview_mobile.png =300x)
+![画像](/images/expo_in_docker/expo_firstview_mobile.png)
 
 ## 4. つまずきポイント
 
