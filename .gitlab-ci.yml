@@ -8,6 +8,8 @@ stages:
 textlint:
   stage: linting
   image: node:latest
+  before_script:
+    - npm install -g yarn
   script:
     - yarn install
     - mkdir -p ./bin
