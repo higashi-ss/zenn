@@ -2,7 +2,7 @@
 title: "Claude Codeを導入したらやるべき！おすすめ3選（CLAUDE.md / hooks / プラグイン）"
 emoji: "🤖"
 type: "tech"
-topics: ["ai", "claudecode", "claude", "hooks" ]
+topics: ["ai", "claudecode", "claude", "hooks"]
 published: true
 published_at: 2026-06-08 06:00
 publication_name: "secondselection"
