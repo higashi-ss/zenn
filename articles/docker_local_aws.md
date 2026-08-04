@@ -12,10 +12,9 @@ publication_name: "secondselection"
 
 ### 背景と課題
 
-AWSの本番クラウド上で開発をする際一部サービスはお金がかかるし何かと不便です
-LocalStackを使うとクラウド環境を使用しなくても、ローカル環境上で開発及びテストができます。
-今回はこの環境構築を解説します
-dockerを使うことで他のユーザーも簡単に環境構築できるので便利です。
+AWS環境で開発やテストを行う場合、RDSなどの従量課金制サービスを使用する度にコストがかかります。
+LocalStackを使えば、実際のクラウド環境を使用することなく、ローカル上で無料かつ安全に開発・テストが可能です。
+本記事では、チームメンバー全員が簡単に同じ環境を再現できるよう、Dockerを使った環境構築の手順を解説します。
 
 ### 対象読者
 
@@ -23,6 +22,10 @@ dockerを使うことで他のユーザーも簡単に環境構築できるの�
 * LocalStackのdocker開発に苦戦している人
 
 ※　本記事ではdockerに関する基本的な用語や仕組みについての解説は省略いたします。
+
+### 構築できる設定
+
+* 
 
 ## 事前準備
 
@@ -46,26 +49,35 @@ dockerを使うことで他のユーザーも簡単に環境構築できるの�
 myapp/
 ├── .devcontainer/
 │   └── devcontainer.json
-├── db/                       # DB初期化
-│   └── create_table.sql
-├── src/                      # アプリケーションコード
-├── Dockerfile                # lambdaサービス構築用のDockerfile
-├── compose.yaml              # 先ほどのComposeファイル
-└── pyproject.toml            # Pythonパッケージ依存関係・プロジェクト定義
+├── src/         # アプリケーションコード(今回は内容割愛)
+├── Dockerfile
+└── compose.yaml
 ```
 
 ## AWSのローカル開発
 
 ### LocalStackとは
 
-LocalStackは、AWSのクラウドサービスをローカル環境で擬似的に再現できるツールです。
-本番のAWS環境に依存せず、S3やLambdaDynamoDBなどの挙動をローカルで再現できるため、テストの高速化やクラウド利用コストの削減といったメリットがあります。
-対応しているサービスも多く、S3、DynamoDB、Lambda、SNS、SQSなど、幅広いAWS機能を模擬的に利用できます。
+LocalStackは、AWSのクラウド環境をローカルで擬似的に再現できるエミュレーションツールです。
+S3、RDS、Lambda、SQSといった幅広い主要サービスに対応しています。
+本番のAWS環境に依存しないため、以下のような大きなメリットがあります。
+
+* **コスト削減**：ローカルで完結するため、無料テストできる
+* **開発の高速化**：実際のAWS環境へデプロイする待ち時間がなく、素早くローカルでテストできる
+
+:::message
+
+なお、LocalStackには無料版と有料版が存在します。
+本記事では無料版を使用した環境構築を解説します。無料版と有料版の機能の違いについては、以下をご参照ください。
+
+:::
+
+@[card](https://docs.localstack.cloud/aws/licensing/)
 
 ## 環境構築手順
 
 それでは環境構築を実施します
-今回はWSL上にDBのコンテナ、localstackのコンテナ、開発・実行用コンテナの3つを準備します。
+今回はWSL上にlocalstackのコンテナ、開発・作業用コンテナの2つを準備します。
 
 ### Dockerfile作成
 
@@ -82,13 +94,8 @@ RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 
 RUN apt update
 RUN apt install software-properties-common -y
-RUN add-apt-repository ppa:deadsnakes/ppa -y
-RUN apt update
-RUN apt upgrade -y
-RUN apt install python3.14 -y
-RUN apt install curl -y
-RUN apt install git -y
-RUN apt install unzip -y
+# 必要なソフトをインストール　gitをインストールすることでコンテナ内でgitコマンド使用できます
+RUN apt update && apt install -y curl git unzip
 
 # AWS CLI v2 のインストール
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
@@ -101,12 +108,6 @@ RUN apt-get clean
 
 # public.ecr.aws/ubuntu/ubuntu:jammy だと、git log が文字化けするので less コマンドの charset を指定する
 ENV LESSCHARSET=utf-8
-
-RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.14
-
-# pip3でpyproject.toml記載のパッケージをインストール
-COPY pyproject.toml ./
-RUN pip3 install --no-cache-dir --ignore-installed .[dev]
 
 # 環境変数
 ARG USER_NAME
@@ -133,75 +134,20 @@ CMD ["bash"]
 
 * コード解説
 
-アップロード手順
-ローカルスタックが最新版はユーザー登録が必要なので、必要ない古いやつをインストールしていること
-最後ディレクトリ所有者をルートから自分に変更していること
+上記のDockerfileは単にツールを入れるだけでなく、「コンテナ内での操作性」と「権限エラーの回避」を考慮して作成しています。
 
-### pyproject.toml作成
+* コンテナ内での操作性
+  * コンテナ内からLocalStackにアクセスするためのawscliや、開発に必要なgitを導入しています
+* 権限エラーの回避
+  * コンテナ内をrootユーザーのまま操作すると、コンテナ内で作成・変更したファイルがroot所有になり、WSL側から編集できなくなります（権限エラーになる）。
+  * 本環境ではコンテナ内でWSL側のユーザーと同じユーザーを作成しrootではなく自分がファイル操作・実行できるよう所有権を変更しています。
 
-* コード
+:::message
 
-```toml: pyproject.toml
-[project]
-name = "ecovpp"
-version = "0.1.0"
-description = ""
-readme = "README.md"
-authors = [
-    { name = "Your Name", email = "your.email@example.com" },
-]
-requires-python = ">=3.14"
+LocalStackの2026年4月以降のバージョンは、ユーザー登録が必須になりました。
+今回はユーザー登録不要でシンプルに動作する過去バージョンを指定しています。
 
-
-dependencies = [
-    "aws-lambda-powertools==3.29.0",
-    "boto3==1.43.14",
-    "pymysql==1.2.0",
-    "tenacity==9.1.4"
-]
-
-[project.optional-dependencies]
-dev = [
-    "coverage==7.14.1",
-    "pytest==9.0.3",
-    "pytest-mock==3.14.0",
-    "pytest-cov==6.0.0",
-    "pytest-freezer==0.4.9",
-    "requests-mock==1.10.0",
-    "moto==5.2.1",
-    "flake8==7.3.0",
-    "mypy==2.1.0",
-    "bandit==1.9.4",
-    "ruff==0.15.0",
-    "types-PyMySQL==1.1.0.20260518",
-    "types-PyYaml==6.0.12.20260518",
-    "types-requests==2.32.4.20250913",
-    "python-taint==0.42",
-    "mypy-boto3-dynamodb==1.43.0",
-    "boto3-stubs[s3,secretsmanager]==1.43.36"
-]
-
-[tool.pytest.ini_options]
-# pytestでパスを省略した場合に使用されるパス
-testpaths = ["src/tests"]
-# pytestでimportを探すパス
-pythonpath = ["src/app"]
-
-[tool.mypy]
-# コンテナ内のPythonの実行パスを指定して、インストール済みライブラリを認識させる
-python_executable = "/usr/bin/python3.14"
-
-# チェック対象のパスを設定
-mypy_path = "src/app"
-
-# __init__.py がないフォルダ（srcの階層など）もmypyに認識させる
-explicit_package_bases = true
-```
-
-* コード解説
-
-開発用と本番用でインストールするパッケージを変えていること
-この記事に関する不要なコードが多い
+:::
 
 ### compose.yaml作成
 
@@ -209,14 +155,14 @@ explicit_package_bases = true
 
 ```yaml: compose.yaml
 services:
-  lambda:
+  my_app:
     build:
       context: .
       dockerfile: ./Dockerfile
       args:
-        USER_NAME: ${USER_NAME}
-        USER_UID: ${USER_UID}
-        USER_GID: ${USER_GID}
+        USER_NAME: username
+        USER_UID: 1000
+        USER_GID: 1000
     volumes:
       - .:/app    
     # コンテナ上でコマンド操作ができる
@@ -224,23 +170,7 @@ services:
     # コンテナ上でキーボード操作ができる
     stdin_open: true
     depends_on:
-      - ecomeganedb5_7
       - localstack
-
-  # エコめがねDB(MySQL5.7)用
-  # エコめがねDBのinitDBはMySQLのバージョンにかかわらず共通
-  ecomeganedb5_7:
-    image: public.ecr.aws/docker/library/mysql:5.7
-    environment:
-      # 初期化の時にrootパスが必要
-      MYSQL_ROOT_PASSWORD: "1q2w3e4r"
-      TZ: "Asia/Tokyo"
-    volumes:
-      - vol_ecomeganedb5_7:/var/lib/mysql
-      - ./db/cnf/my5_7.cnf:/etc/mysql/conf.d/my.cnf
-      - ./db/ecomeganedb5_7:/docker-entrypoint-initdb.d
-    ports:
-      - 3306:3306
 
   # S3 ローカル用
   # localstack
@@ -261,17 +191,19 @@ services:
       - "vol_localstack:/var/lib/localstack"
 
 volumes:
-  vol_ecomeganedb5_7:
-    driver: local
   vol_localstack:
     driver: local
 ```
 
 * コード解説
-ボリュームでデータの永続化を行っている
-depends_onでコンテナを起動する順番を安全に処理するよう指示している
 
+Dockerfileで定義した作業コンテナと、LocalStackをまとめて起動・連携できるようにします。
 
+* depends_onで起動順序を制御
+  * my_app側でdepends_onを使用しています。これにより、必ず設定したコンテナ(今回ならLocalStack) が先に起動してからアプリコンテナが起動するよう制御しています。
+* データの永続化
+  * LocalStackはデフォルトのままだと、コンテナを停止した時に作成したS3バケットやデータが削除されます。
+  * 名前付きボリュームを割り当てることで、コンテナを再起動してもLocalStack内のデータを保持できるようにしています。
 
 ### devcontainer作成
 
@@ -279,11 +211,11 @@ depends_onでコンテナを起動する順番を安全に処理するよう指�
 
 ```json: devcontainer.json
 {
-    "name": "ECOVPP-AI=VPP",
+    "name": "my-project",
     "dockerComposeFile": [
         "../compose.yaml"
     ],
-    "service": "lambda",
+    "service": "my_app",
     "workspaceFolder": "/app",
     "features": {
         "ghcr.io/devcontainers/features/docker-outside-of-docker:1.10.0": {
@@ -291,82 +223,6 @@ depends_onでコンテナを起動する順番を安全に処理するよう指�
         "enableNonRootDocker": "true"
         }
     },
-    "customizations": {
-        "vscode": {
-            "extensions": [
-                "ms-python.python",
-                "ms-python.flake8",
-                "ms-python.mypy-type-checker",
-                "charliermarsh.ruff",
-                "streetsidesoftware.code-spell-checker",
-                "njpwerner.autodocstring",
-                "usernamehw.errorlens",
-                "eamodio.gitlens"
-            ],
-            "settings": {
-                "[python]": {
-                    "editor.formatOnSave": true,
-                    "editor.defaultFormatter": "charliermarsh.ruff"
-                },
-                "editor.codeActionsOnSave": {
-                    "source.fixAll": "explicit",
-                    "source.organizeImports": "explicit"
-                },
-                "ruff.lint.enable": false,
-                "cSpell.userWords": [
-                    "autouse",
-                    "boto",
-                    "caplog",
-                    "charliermarsh",
-                    "chikuden",
-                    "chikudendb",
-                    "cursorclass",
-                    "eamodio",
-                    "ecocute",
-                    "ecomegane",
-                    "ecomeganedb",
-                    "ecovpp",
-                    "ecovppdb",
-                    "errorlens",
-                    "executemany",
-                    "hepco",
-                    "infile",
-                    "jiseki",
-                    "jusin",
-                    "kakuho",
-                    "kepco",
-                    "keyaku",
-                    "kyodo",
-                    "lesscharset",
-                    "localstack",
-                    "mainvpp",
-                    "moto",
-                    "mypy",
-                    "njpwerner",
-                    "pymysql",
-                    "pyproject",
-                    "pytest",
-                    "pythonpath",
-                    "saigai",
-                    "snks",
-                    "sumame",
-                    "teden",
-                    "tepco",
-                    "testpaths",
-                    "usernamehw",
-                    "vpp",
-                    "vppdb",
-                    "yoryo",
-                    "yubin",
-                    "zipcodemaster"
-                ],
-                "python.analysis.extraPaths": [
-                    "./src/app"
-                ]
-            }
-        }
-    },
-    "postCreateCommand": "/bin/sh .devcontainer/postCreateCommand.sh"
 }
 
 ```
@@ -397,7 +253,7 @@ curl http://localstack:4566/_localstack/health
 ## 最後に
 
 今回の記事では、Dockerコンテナ上でLocalStackとDBを立ち上げAWSのローカル開発環境を作成しました
-LocalStackを使うことでAWS使用時に必要な認識設定や権限を気にせずかつコストゼロでローカル開発を実施することができます。
+LocalStackを使うことでAWS使用時に必要な認識設定や権限を気にせずかつコストゼロでローカル開発を実施できます。
 
 最後までお読みいただきありがとうございました。
 
