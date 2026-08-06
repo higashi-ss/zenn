@@ -4,7 +4,7 @@ emoji: "🐳"
 type: "tech"
 topics: ["docker", "aws", "localstack"]
 published: true
-published_at: 2026-08-17 06:00
+published_at: 2026-08-24 06:00
 publication_name: "secondselection"
 ---
 
@@ -12,14 +12,14 @@ publication_name: "secondselection"
 
 ### 背景と課題
 
-AWS環境で開発やテストを行う場合、RDSなどの従量課金制サービスを使用する度にコストがかかります。
+AWS環境で開発やテストを行う場合、使用する度にコストがかかります。
 LocalStackを使えば、実際のクラウド環境を使用することなく、ローカル上で無料かつ安全に開発・テストが可能です。
-本記事では、チームメンバー全員が簡単に同じ環境を再現できるよう、Dockerを使った環境構築の手順を解説します。
+本記事では、LocalStackの環境構築方法を記載します。
+あわせて、筆者がLocalStackを用いたアプリ開発中に苦労したユーザー権限エラーやバージョン選択のナレッジについても共有します。
 
 ### 対象読者
 
 * AWSをローカル環境で試したい人
-* LocalStackのdocker開発に苦戦している人
 
 ※ 本記事ではdockerやDev Containersに関する基本的な用語や仕組みについての解説は省略いたします。
 
@@ -27,19 +27,15 @@ LocalStackを使えば、実際のクラウド環境を使用することなく�
 
 本記事では、以下の要素を備えた開発環境を構築します。
 
-* ベースイメージにUbuntuを採用する
-* LocalStackを使ってローカル環境でAWSサービスが利用する
+* LocalStackを使ってローカル環境でAWSサービスを試せる
 * コンテナを停止・再起動してもLocalStack内のデータを保持する
-* Dev Containersと連携されている
-* Git管理や権限エラーを防ぐユーザー設定が準備されている
+* アプリ開発を快適するためにGit管理や権限エラーを防ぐユーザー設定が準備されている
 
 ## 事前準備
 
 ### 必要環境とツール
 
-* Windows 11 + WSL2: Linux環境がセットアップ済みであること。
 * Docker環境: WSL2上でDockerが動作する状態であること。
-* VS Code: コンテナ内のファイルを編集するために推奨します。
 
 ### システム構成
 
@@ -47,14 +43,17 @@ LocalStackを使えば、実際のクラウド環境を使用することなく�
 
 ![画像](/images/docker_local_aws/system_diagram.drawio.png)
 
+※作業用コンテナ（my_app）は、実際にPythonなどのアプリケーションコードを配置して開発することを想定した環境です。
+　本記事ではLocalStackの環境構築に焦点を当てるため、アプリコードの実装については割愛します。
+
 ### ディレクトリ構成
 
-本記事のディレクトリ構成は以下になります。
+本記事で構築するディレクトリ構成は以下になります。
 
 ```text
 myapp/
 ├── .devcontainer/
-│   └── devcontainer.json
+│   └── devcontainer.jsonawscli は、ターミナルから LocalStack 内のデータを手動で確認したり、初期設定を行ったりするための開発者向けツールです。
 ├── src/         # アプリ用ソースコードフォルダ(今回は内容割愛)
 ├── Dockerfile
 └── compose.yaml
@@ -66,7 +65,7 @@ myapp/
 
 LocalStackは、AWSのクラウド環境をローカルで擬似的に再現できるエミュレーションツールです。
 S3、RDS、Lambda、SQSといった幅広い主要サービスに対応しています。
-本番のAWS環境に依存しないため、以下のような大きなメリットがあります。
+クラウドのAWS環境に依存しないため、以下のような大きなメリットがあります。
 
 * **コスト削減**：ローカルで完結するため、無料でテストできる
 * **開発の高速化**：実際のAWS環境へデプロイしたり認証設定をする必要がないため、素早くローカルでテストできる
@@ -83,9 +82,9 @@ S3、RDS、Lambda、SQSといった幅広い主要サービスに対応してい
 ## 環境構築手順
 
 それでは環境構築を実施します
-今回はWSL上にlocalstackのコンテナ、作業用コンテナの2つを準備します。
+今回はWSL上にLocalstackのコンテナ、作業用コンテナの2つを準備します。
 
-### Dockerfile作成
+### 作業用コンテナのDockerfile作成
 
 ```dockerfile: Dockerfile
 FROM public.ecr.aws/ubuntu/ubuntu:jammy
@@ -141,15 +140,17 @@ CMD ["bash"]
 上記のDockerfileは単にツールを入れるだけでなく、「コンテナ内での操作性」と「権限エラーの回避」を考慮して作成しています。
 
 * コンテナ内での操作性
-  * コンテナ内からLocalStackにアクセスするための`awscli`や、開発に必要なGitを導入しています
+  * コンテナ内からLocalStackにアクセスできるか検証する`awscli`や、開発に必要なGitを導入しています
+  * `git log`の文字化けを防ぐために`LESSCHARSET=utf-8`で文字コードを指定しています。
 * 権限エラーの回避
   * コンテナ内をrootユーザーのまま操作すると、コンテナ内で作成・変更したファイルがroot所有になり、WSL側から編集できなくなります（権限エラーになる）。
   * 本環境ではコンテナ内でWSL側のユーザーと同じユーザーを作成しrootではなく自分がファイル操作・実行できるよう所有権を変更しています。
 
 :::message
 
-LocalStackは、バージョン`2026.03.0`以降ユーザー登録が必須になりました。
-今回はユーザー登録不要でシンプルに動作する過去バージョンを指定しています。
+`awscli`はターミナルからLocalStackのデータを手動で確認するための開発者向けツールです。
+実際のアプリケーションやシステムがLocalStackとやり取りをする際、`awscli`を呼び出すことはなく、`boto3`などのAWS SDKを使って直接APIリクエストを送信します。
+そのため、動作確認ができればDockerfileから`awscli`を削除して問題ありません。
 
 :::
 
@@ -174,8 +175,7 @@ services:
     depends_on:
       - localstack
 
-  # S3 ローカル用
-  # localstack
+  # Localstack用
   localstack:
     image: localstack/localstack:4.14
     ports:
@@ -189,7 +189,7 @@ services:
     volumes:
       # LocalStack内でコンテナを起動するためのdocker.sockの共有
       - "/var/run/docker.sock:/var/run/docker.sock"
-      # コンテナ停止後もLocalStack内の最新データをvol_localstackに保持
+      # コンテナ停止後もLocalStackのデータをvol_localstackに保持
       - "vol_localstack:/var/lib/localstack"
 
 volumes:
@@ -208,11 +208,8 @@ Dockerfileで定義した作業コンテナと、LocalStackをまとめて起動
 * ビルド引数（`args`）によるユーザー情報の設定
   * WSL側のユーザー情報をコンテナに引き継ぐための設定です。ご自身の環境のユーザー情報に合わせて変更してください。
   * ユーザ情報は以下のターミナルコマンドで確認できます。
-* データの永続化
-  * LocalStackはデフォルトのままだと、コンテナを停止した時に作成したS3バケットやデータが削除されます。
-  * 名前付きボリュームを割り当てることで、コンテナを再起動してもLocalStack内のデータを保持できるようにしています。
 
-```bash
+ ```bash
 # USER_NAME確認
 whoami
 # USER_UIDの確認
@@ -221,29 +218,29 @@ id -u
 id -g
 ```
 
-### devcontainer作成
+* データの永続化
+  * LocalStackはデフォルトのままだと、コンテナを停止した時に作成したS3バケットやデータが削除されます。
+  * 名前付きボリュームを割り当てることで、コンテナを再起動してもLocalStack内のデータを保持できるようにしています。
 
-```json: devcontainer.json
-{
-    "name": "my-project",
-    "dockerComposeFile": [
-        "../compose.yaml"
-    ],
-    "service": "my_app",
-    "workspaceFolder": "/app",
-}
-```
+:::message
 
-#### devcontainerの解説
+LocalStackは、バージョン`2026.03.0`以降ユーザー登録が必須になりました。
+今回はユーザー登録不要でシンプルに動作する過去バージョンを指定しています。
 
-構築した`my_app`コンテナ内に直接接続して開発するための設定ファイルです。
-本ファイルは不要な設定を削ぎ落とした最小限の構成にしています。
+:::
 
 ### コンテナ起動
 
-コンテナはdevcontainerを使って開きます。
-Visual Studio Codeの左下「><」アイコンをクリックして、「コンテナを再度開く」を選択してください。
-コンテナが自動で起動します。
+下記コマンドでコンテナを作成しコンテナに入ります。
+
+```bash
+# compose.yamlに設定したコンテナを作成
+docker compose up -d --build
+
+# 作業用コンテナmy_appを起動
+docker compose exec my_app bash
+
+```
 
 ### 動作確認
 
@@ -261,6 +258,6 @@ curl http://localstack:4566/_localstack/health
 ## 最後に
 
 今回の記事では、Dockerコンテナ上でLocalStackを立ち上げ、AWSのローカル開発環境を構築しました。
-LocalStackを使うことでローカル環境にてAWSサービスをコストゼロで開発・テストを実施できます。
+LocalStackを使うことでアプリの開発やテストで使用するS3やEC2をコストゼロで実施できます。
 
 最後までお読みいただきありがとうございました。
