@@ -1,5 +1,5 @@
 ---
-title: "dockerでLocalStackを使用したAWSのローカル環境を構築"
+title: "初めてのDocker環境構築をして苦労した話"
 emoji: "🐳"
 type: "tech"
 topics: ["docker", "aws", "localstack"]
@@ -10,26 +10,20 @@ publication_name: "secondselection"
 
 ## はじめに
 
-### 背景と課題
+### 背景
 
-AWS環境で開発やテストを行う場合、使用する度にコストがかかります。
-LocalStackを使えば、実際のクラウド環境を使用することなく、ローカル上で無料かつ安全に開発・テストが可能です。
-本記事では、LocalStackの環境構築方法を記載します。
-あわせて、筆者がLocalStackを用いたアプリ開発中に苦労したユーザー権限エラーやバージョン選択のナレッジについても共有します。
+先日、業務で初めてDockerを用いたアプリ開発の環境構築を担当しました。
+事前に類似PJの構成ファイルも入手していたため、「スムーズにいけるはず」と思っていました。
+しかし、いざ手を動かしてみると予想外の連続で、かなり苦戦することになりました。
+
+本記事では、環境構築をするにあたって私が苦労した体験談や調べて学んだことを共有します。
 
 ### 対象読者
 
-* AWSをローカル環境で試したい人
+* 初心者エンジニアの方
+* これから業務で環境構築をする予定のある方
 
-※ 本記事ではdockerやDev Containersに関する基本的な用語や仕組みについての解説は省略いたします。
-
-### 構築する設定
-
-本記事では、以下の要素を備えた開発環境を構築します。
-
-* LocalStackを使ってローカル環境でAWSサービスを試せる
-* コンテナを停止・再起動してもLocalStack内のデータを保持する
-* アプリ開発を快適するためにGit管理や権限エラーを防ぐユーザー設定が準備されている
+※ 本記事ではdockerの基本的な用語や仕組みについての解説は省略いたします。
 
 ## 事前準備
 
@@ -39,12 +33,12 @@ LocalStackを使えば、実際のクラウド環境を使用することなく�
 
 ### システム構成
 
-本記事で紹介する環境構築が完了後のシステム構成図を記載します。
+本記事で紹介する私が実施した環境構築のシステム構成図を記載します。
 
 ![画像](/images/docker_local_aws/system_diagram.drawio.png)
 
 ※作業用コンテナ（my_app）は、実際にPythonなどのアプリケーションコードを配置して開発することを想定した環境です。
-　本記事ではLocalStackの環境構築に焦点を当てるため、アプリコードの実装については割愛します。
+　本記事ではアプリコードの実装については割愛します。
 
 ### ディレクトリ構成
 
@@ -52,34 +46,12 @@ LocalStackを使えば、実際のクラウド環境を使用することなく�
 
 ```text
 myapp/
-├── .devcontainer/
-│   └── devcontainer.jsonawscli は、ターミナルから LocalStack 内のデータを手動で確認したり、初期設定を行ったりするための開発者向けツールです。
 ├── src/         # アプリ用ソースコードフォルダ(今回は内容割愛)
 ├── Dockerfile
 └── compose.yaml
 ```
 
-## AWSのローカル開発
-
-### LocalStackとは
-
-LocalStackは、AWSのクラウド環境をローカルで擬似的に再現できるエミュレーションツールです。
-S3、RDS、Lambda、SQSといった幅広い主要サービスに対応しています。
-クラウドのAWS環境に依存しないため、以下のような大きなメリットがあります。
-
-* **コスト削減**：ローカルで完結するため、無料でテストできる
-* **開発の高速化**：実際のAWS環境へデプロイしたり認証設定をする必要がないため、素早くローカルでテストできる
-
-:::message
-
-なお、LocalStackには無料版と有料版が存在します。
-本記事では無料版を使用した環境構築を解説します。無料版と有料版の機能の違いについては、以下をご参照ください。
-
-:::
-
-@[card](https://docs.localstack.cloud/aws/licensing/)
-
-## 環境構築手順
+## 環境構築
 
 それでは環境構築を実施します
 今回はWSL上にLocalstackのコンテナ、作業用コンテナの2つを準備します。
@@ -94,20 +66,15 @@ WORKDIR /app
 
 # ubuntuの内部を日本時間に変更
 RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
-
-RUN apt update
-RUN apt install software-properties-common -y
-# 必要なソフトをインストール
-RUN apt update && apt install -y curl git unzip
-
-# AWS CLI v2 のインストール
-RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
-    && unzip awscliv2.zip \
-    && ./aws/install \
-    && rm -rf awscliv2.zip aws
-
-RUN rm -rf /var/lib/apt/lists/*
-RUN apt-get clean
+    && apt update \
+    && apt install software-properties-common -y \
+    && apt update \
+    && apt upgrade -y \
+    && apt install -y --no-install-recommends \
+        git \
+        python3.14 -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # public.ecr.aws/ubuntu/ubuntu:jammy だと、git log が文字化けするので less コマンドの charset を指定する
 ENV LESSCHARSET=utf-8
@@ -135,24 +102,53 @@ USER ${USER_NAME:-root}
 CMD ["bash"]
 ```
 
-#### Dockerfileの解説
+#### Dockerfileの補足
 
 上記のDockerfileは単にツールを入れるだけでなく、「コンテナ内での操作性」と「権限エラーの回避」を考慮して作成しています。
 
 * コンテナ内での操作性
-  * コンテナ内からLocalStackにアクセスできるか検証する`awscli`や、開発に必要なGitを導入しています
+  * コンテナ内から開発に必要なGitを導入しています。
   * `git log`の文字化けを防ぐために`LESSCHARSET=utf-8`で文字コードを指定しています。
 * 権限エラーの回避
   * コンテナ内をrootユーザーのまま操作すると、コンテナ内で作成・変更したファイルがroot所有になり、WSL側から編集できなくなります（権限エラーになる）。
   * 本環境ではコンテナ内でWSL側のユーザーと同じユーザーを作成しrootではなく自分がファイル操作・実行できるよう所有権を変更しています。
 
-:::message
+#### Dockerfileで苦労した点
 
-`awscli`はターミナルからLocalStackのデータを手動で確認するための開発者向けツールです。
-実際のアプリケーションやシステムがLocalStackとやり取りをする際、`awscli`を呼び出すことはなく、`boto3`などのAWS SDKを使って直接APIリクエストを送信します。
-そのため、動作確認ができればDockerfileから`awscli`を削除して問題ありません。
+苦労した点は、ビルドエラーが発生している箇所の特定でした。
+最初は複数の処理を`&&`でつないだ1つの`RUN`命令として書いており、ビルドが途中で失敗した際に「どのコマンドで止まったのか」がひと目で判別できませんでした。
+そこで、デバッグ時はコマンドごとに`RUN`を一時的に分解してビルドを実行し、エラーの発生箇所を特定しました。
 
-:::
+```dockerfile: Dockerfile
+
+# 変更前:1つのRUNにまとめていると、エラー箇所の特定が難しい
+RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
+    && apt update \
+    && apt install software-properties-common -y \
+    && apt update \
+    && apt upgrade -y \
+    && apt install -y --no-install-recommends \
+        git \
+        python3.14 -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# 変更後:コマンドごとにRUNを分割し、エラー発生箇所を可視化する
+RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
+RUN apt update
+RUN apt install software-properties-common -y
+RUN apt update
+RUN apt upgrade -y
+RUN apt install -y --no-install-recommends 
+RUN apt install -y git
+RUN apt install -y python3.14 -y
+RUN rm -rf /var/lib/apt/lists/*
+RUN apt-get clean
+
+```
+
+「最初から分割しておけば？」とも思いましたが、Dockerでは`RUN`の数だけイメージのレイヤーが作成され、最終的なイメージサイズが大きくなってしまうという仕様があります。
+そのため、環境構築中は`RUN`を細かく分けてエラー特定やキャッシュを効かせやすくし、構成が確定した最終段階で1つの`RUN`に集約するのがおすすめです。
 
 ### compose.yaml作成
 
@@ -181,6 +177,7 @@ services:
     ports:
       - "4566:4566" 
     environment:
+      # 自分が使用するAWSサービスを指定
       SERVICES: s3,secretsmanager,ec2
       # デバッグログが出力される設定
       DEBUG: 1
@@ -197,16 +194,14 @@ volumes:
     driver: local
 ```
 
-#### compose.yamlの解説
+#### compose.yamlの補足
 
 Dockerfileで定義した作業コンテナと、LocalStackをまとめて起動・連携できるようにします。
 
-* 使用AWSサービスの指定
-  * `environment`の`SERVICES`で自分が使用するAWSサービスを指定します。今回はS3、Secrets Manager、EC2を指定しています。
 * `depends_on`で起動順序を制御
   * `my_app`はLocalStackを利用する前提で動くため、`depends_on`を指定して必ずLocalStackコンテナが先に起動するよう制御します。これにより、起動直後の接続エラーを防ぎます。
 * ビルド引数（`args`）によるユーザー情報の設定
-  * WSL側のユーザー情報をコンテナに引き継ぐための設定です。ご自身の環境のユーザー情報に合わせて変更してください。
+  * WSL側のユーザー情報をコンテナに引き継ぐための設定です。ご自身の環境のユーザー情報に合わせて変更します。
   * ユーザ情報は以下のターミナルコマンドで確認できます。
 
  ```bash
@@ -222,42 +217,23 @@ id -g
   * LocalStackはデフォルトのままだと、コンテナを停止した時に作成したS3バケットやデータが削除されます。
   * 名前付きボリュームを割り当てることで、コンテナを再起動してもLocalStack内のデータを保持できるようにしています。
 
-:::message
+#### compose.yamlで苦労した点
 
-LocalStackは、バージョン`2026.03.0`以降ユーザー登録が必須になりました。
-今回はユーザー登録不要でシンプルに動作する過去バージョンを指定しています。
+参考にした既存プロジェクトの`compose.yaml`をそのまま流用したところ、LocalStackの起動時にエラーが発生しました。
+原因を調べてみると、2026年3月にLocalStack側で仕様変更が行われており、従来の設定ファイルの記述では動作しないことが判明しました。
 
-:::
+この問題に対しては、以下の2つのアプローチが考えられます。
 
-### コンテナ起動
+* 最新仕様に合わせて記述を更新する（今回採用）
+  * 公式ドキュメントを参照し、最新バージョンで推奨されている環境変数や設定項目へ書き換えました。
+* 動作実績のある旧バージョンに固定する（別解）
+  * `localstack/localstack:4.1`のように旧バージョンのイメージタグを明示的に指定し、従来通りの設定で動かす方法です。
 
-下記コマンドでコンテナを作成しコンテナに入ります。
-
-```bash
-# compose.yamlに設定したコンテナを作成
-docker compose up -d --build
-
-# 作業用コンテナmy_appを起動
-docker compose exec my_app bash
-
-```
-
-### 動作確認
-
-コンテナ起動後、VS Code内のターミナルから以下のコマンドを入力します。
-サービス情報が返ってくれば、LocalStackの起動は成功しており、ローカル環境の構築は完了です。
-
-```bash
-curl http://localstack:4566/_localstack/health
-```
-
-#### 成功例
-
-![画像](/images/docker_local_aws/check_localstack.png)
+「既存PJ通りに書けば動く」と過信せず、依存ツールのアップデート情報や公式ドキュメントを確認する大切さを学びました。
 
 ## 最後に
 
-今回の記事では、Dockerコンテナ上でLocalStackを立ち上げ、AWSのローカル開発環境を構築しました。
-LocalStackを使うことでアプリの開発やテストで使用するS3やEC2をコストゼロで実施できます。
-
-最後までお読みいただきありがとうございました。
+初めての環境構築は既存のファイルを真似するだけではうまくいかず苦労しました。
+ですが、エラーの原因を分解して調べたり最新の仕様変化に対応したりすることは、エンジニアとして今後も活きる貴重な経験になりました。
+本記事が、これから環境構築に挑戦する方の参考になれば幸いです。
+最後までお読みいただきありがとうございました！
