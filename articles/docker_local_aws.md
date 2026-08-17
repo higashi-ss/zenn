@@ -13,7 +13,7 @@ publication_name: "secondselection"
 ### 背景
 
 先日、業務で初めてDockerを用いたアプリ開発の環境構築を担当しました。
-事前に類似PJの構成ファイルも入手していたため、「これと同じように作れば大丈夫そうだな」と思っていました。
+事前に類似アプリの構成ファイルも入手していたため、「これと同じように作れば大丈夫そうだな」と思っていました。
 しかし、いざ手を動かしてみると一筋縄ではいかず、かなり苦戦することになりました。
 
 本記事では、環境構築をするにあたって私が苦労した体験談や調べて学んだことを共有します。
@@ -34,12 +34,12 @@ publication_name: "secondselection"
 ### システム構成
 
 本記事で紹介する私が実施した環境構築のシステム構成図を記載します。
-LocalStackを活用し、AWSサービスをローカル上で開発やテストを行える構成を目指しました。
+LocalStackを活用し、AWSサービスを使った開発をローカル上で動作確認やテストを行える構成を目指しました。
 
 ![画像](/images/docker_local_aws/system_diagram.drawio.png)
 
-※作業用コンテナ（my_app）は、実際にPythonなどのアプリケーションコードを配置して開発することを想定した環境です。
-　本記事ではアプリコードの実装については割愛します。
+※作業用コンテナ（my_app）は、実際にPythonなどのアプリを配置して開発することを想定した環境です。
+　本記事ではアプリの実装については割愛します。
 
 ### ディレクトリ構成
 
@@ -73,7 +73,7 @@ RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
     && apt upgrade -y \
     && apt install -y --no-install-recommends \
         git \
-        python3.14 -y \
+        python3.14 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -130,7 +130,7 @@ RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
     && apt upgrade -y \
     && apt install -y --no-install-recommends \
         git \
-        python3.14 -y \
+        python3.14 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -142,7 +142,7 @@ RUN apt update
 RUN apt upgrade -y
 RUN apt install -y --no-install-recommends 
 RUN apt install -y git
-RUN apt install -y python3.14 -y
+RUN apt install -y python3.14
 RUN rm -rf /var/lib/apt/lists/*
 RUN apt-get clean
 
@@ -179,7 +179,7 @@ services:
       - "4566:4566" 
     environment:
       # 自分が使用するAWSサービスを指定
-      SERVICES: s3,secretsmanager,ec2
+      SERVICES: s3,secretsmanager
       # デバッグログが出力される設定
       DEBUG: 1
       # docker.sockとLocalStackコンテナの中を共有する
@@ -205,14 +205,14 @@ Dockerfileで定義した作業コンテナと、LocalStackをまとめて起動
   * WSL側のユーザー情報をコンテナに引き継ぐための設定です。ご自身の環境のユーザー情報に合わせて変更します。
   * ユーザ情報は以下のターミナルコマンドで確認できます。
 
- ```bash
-# USER_NAME確認
-whoami
-# USER_UIDの確認
-id -u
-# USER_GIDの確認
-id -g
-```
+    ```bash
+    # USER_NAME確認
+    whoami
+    # USER_UIDの確認
+    id -u
+    # USER_GIDの確認
+    id -g
+    ```
 
 * データの永続化
   * LocalStackはデフォルトのままだと、コンテナを停止した時に作成したS3バケットやデータが削除されます。
@@ -220,17 +220,22 @@ id -g
 
 #### compose.yamlで苦労した点
 
-参考にした既存プロジェクトの`compose.yaml`をそのまま流用したところ、LocalStackの起動時にエラーが発生しました。
-原因を調べてみると、私が環境構築する1ヶ月前にLocalStack側で仕様変更が行われており、従来の設定ファイルの記述では動作しないことが判明しました。
+参考にした既存アプリの`compose.yaml`をそのまま流用したところ、LocalStackの起動時にエラーが発生しました。
+原因を調べてみると、LocalStackは2026年3月以降、無料版であってもアカウント登録と認証トークンの設定が必須化されたためでした。
+そのため私が参考にした2026年3月以前のコードの記述では最新バージョンと記載方法が異なるため動作しないと判明しました。
 
 この問題に対しては、以下の2つのアプローチが考えられます。
 
 * 最新仕様に合わせて記述を更新する
   * 公式ドキュメントを参照し、最新バージョンで推奨されている環境変数や設定項目へ書き換えます。
-* 動作実績のある旧バージョンに固定する（今回採用）
+* バージョンを明示的に固定する（今回採用）
   * `localstack/localstack:4.1`のように旧バージョンのイメージタグを明示的に指定し、従来通りの設定で動かす方法です。
+  * ※類似アプリでは`image: localstack/localstack`と記載されており、最新版が取得される状態でした。
 
-「既存PJ通りに書けば動く」と過信せず、依存ツールのアップデート情報や公式ドキュメントを確認する大切さを学びました。
+今回は開発環境の早期立ち上げを最優先とし、従来の設定で動く旧バージョンを採用しました。
+最新版への移行や認証セットアップについては、時間に余裕があるタイミングで検証し、別途記事にできればと考えております。
+
+苦労しましたが、「既存アプリ通りに書けば動く」と過信せず、依存ツールのアップデート情報や公式ドキュメントを確認する大切さを学びました。
 
 ## 最後に
 
