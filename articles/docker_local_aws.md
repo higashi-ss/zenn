@@ -4,7 +4,7 @@ emoji: "🐳"
 type: "tech"
 topics: ["docker", "aws", "localstack"]
 published: true
-published_at: 2026-08-24 06:00
+published_at: 2026-08-31 06:00
 publication_name: "secondselection"
 ---
 
