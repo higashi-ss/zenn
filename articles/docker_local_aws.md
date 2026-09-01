@@ -2,7 +2,7 @@
 title: "初めてのDocker環境構築をして苦労した話"
 emoji: "🐳"
 type: "tech"
-topics: ["docker", "aws", "localstack"]
+topics: ["docker", "aws", "localstack", "初心者向け"]
 published: true
 published_at: 2026-09-07 06:00
 publication_name: "secondselection"
